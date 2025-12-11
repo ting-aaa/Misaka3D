@@ -84,6 +84,16 @@ int main() {
 
     // C. 构建场景图
     Scene3D* scene = new Scene3D();
+
+    //添加灯光
+    DirectionalLight* dirLight = new DirectionalLight();
+    dirLight->SetRotation(-45.0f, 45.0f, 0.0f); // 对角线方向
+    scene->GetRoot()->AddChild(dirLight);
+
+    PointLight* pointLight = new PointLight();
+    pointLight->SetPosition(0.0f, 0.0f, 0.0f);
+    pointLight->color = glm::vec3(1.0f, 0.0f, 0.0f);
+    // scene->GetRoot()->AddChild(pointLight);
     
     // 创建一个红色的方块 Mesh
     Mesh* box1 = new Mesh(cubeGeo, redMat);
@@ -94,6 +104,7 @@ int main() {
     box2->SetPosition(3.0f, 0.0f, 0.0f); // 偏移一点
     box2->SetScale(0.2f, 0.2f, 0.2f);    // 变小一点
     box1->AddChild(box2);                // box2 是 box1 的子节点
+    box2->AddChild(pointLight);      // PointLight 是 box2 的子节点
 
     // D. 准备渲染器和相机
     Renderer* renderer = new Renderer();
@@ -128,7 +139,7 @@ int main() {
         // 如果编译报错，可以使用临时变量
         glm::mat4 view = camera->GetViewMatrix();
         glm::mat4 proj = camera->GetProjectionMatrix();
-        view3D->Render(view, proj);
+        view3D->Render(view, proj, camera->GetPosition());
 
         // ImGui Render
         ImGui_ImplOpenGL3_NewFrame();

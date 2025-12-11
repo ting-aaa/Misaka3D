@@ -5,99 +5,135 @@ in vec3 v_FragPos;
 in vec2 v_TexCoords;
 in mat3 v_TBN;
 
-// ==========================================
-// Uniforms (对应 CommonMaterial)
-// ==========================================
-
-// 1. Albedo
+// =======================
+// 材质定义
+// =======================
 uniform bool u_HasAlbedoMap;
 uniform sampler2D u_AlbedoMap;
-uniform vec4 u_AlbedoColor; // 备用
+uniform vec4 u_AlbedoColor;
 
-// 2. Normal
 uniform bool u_HasNormalMap;
 uniform sampler2D u_NormalMap;
 
-// 3. Roughness
 uniform bool u_HasRoughnessMap;
 uniform sampler2D u_RoughnessMap;
-uniform float u_RoughnessVal; // 备用
+uniform float u_RoughnessVal;
 
-// 4. Metallic
 uniform bool u_HasMetallicMap;
 uniform sampler2D u_MetallicMap;
-uniform float u_MetallicVal; // 备用
+uniform float u_MetallicVal;
 
-// Lighting
-uniform vec3 u_LightDir;
-uniform vec3 u_ViewPos; // 来自 Renderer
+uniform vec3 u_ViewPos;
+
+// =======================
+// 灯光结构定义
+// =======================
+struct DirLight {
+    vec3 direction;
+    vec3 color;
+    float intensity;
+};
+
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float intensity;
+    float constant;
+    float linear;
+    float quadratic;
+};
+
+// 预设最大数量 (必须与 C++ Renderer::UploadLights 逻辑一致)
+#define MAX_DIR_LIGHTS 2
+#define MAX_POINT_LIGHTS 4
+
+uniform DirLight u_DirLights[MAX_DIR_LIGHTS];
+uniform int u_DirLightCount;
+
+uniform PointLight u_PointLights[MAX_POINT_LIGHTS];
+uniform int u_PointLightCount;
+
+// =======================
+// 光照计算函数
+// =======================
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec3 albedo, float roughness, float metallic);
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float roughness, float metallic);
 
 void main() {
-    // ------------------------------------------
-    // 1. 数据采集 (采样贴图 或 使用缺省值)
-    // ------------------------------------------
-    
-    // Albedo
+    // 1. 采样材质属性
     vec4 baseColor = u_HasAlbedoMap ? texture(u_AlbedoMap, v_TexCoords) : u_AlbedoColor;
-    //float gray = baseColor.r*0.3+ baseColor.g*0.5+ baseColor.b*0.2;
-    //gray = pow(gray, 2);
-    // 如果是 PNG 透明贴图，这里可以做 alpha 剔除
     if(baseColor.a < 0.1) discard;
 
-    // Roughness (通常存储在红色通道)
     float roughness = u_HasRoughnessMap ? texture(u_RoughnessMap, v_TexCoords).r : u_RoughnessVal;
-
-    // Metallic (通常存储在红色通道)
     float metallic = u_HasMetallicMap ? texture(u_MetallicMap, v_TexCoords).r : u_MetallicVal;
 
-    // Normal
     vec3 N;
     if (u_HasNormalMap) {
-        // 从贴图采样 [0,1] -> [-1,1]
         vec3 normalMapVal = texture(u_NormalMap, v_TexCoords).rgb;
-        normalMapVal = normalize(normalMapVal * 2.0 - 1.0);
-        N = normalize(v_TBN * normalMapVal); // 转换到世界空间
+        N = normalize(v_TBN * (normalMapVal * 2.0 - 1.0));
     } else {
-        // 无贴图时，直接使用几何体法线 (TBN 的 Z 轴)
-        N = normalize(v_TBN[2]); 
+        N = normalize(v_TBN[2]);
     }
 
-    // ------------------------------------------
-    // 2. 光照计算 (半兰伯特 + PBR风格高光)
-    // ------------------------------------------
-
-    vec3 L = normalize(u_LightDir);
     vec3 V = normalize(u_ViewPos - v_FragPos);
-    vec3 H = normalize(L + V);
+    vec3 result = vec3(0.0);
 
-    // [Diffuse] 半兰伯特 (Half-Lambert)
-    // 公式: pow(dot * 0.5 + 0.5, 2.0)
-    float NdotL = dot(N, L);
-    float halfLambert = NdotL * 0.5 + 0.5;
-    float diffuseTerm = pow(halfLambert, 2.0);
-    vec3 diffuse = baseColor.rgb * diffuseTerm;
+    // 2. 累加方向光
+    for(int i = 0; i < u_DirLightCount; i++) {
+        result += CalcDirLight(u_DirLights[i], N, V, baseColor.rgb, roughness, metallic);
+    }
 
-    // [Specular] PBR 风格的高光 (Blinn-Phong 模拟)
-    // 粗糙度越低(0)，光泽度越高；粗糙度越高(1)，高光越散
-    float shininess = (1.0 - roughness) * 256.0 + 1.0; 
-    float NdotH = max(dot(N, H), 0.0);
-    float specTerm = pow(NdotH, shininess);
+    // 3. 累加点光源
+    for(int i = 0; i < u_PointLightCount; i++) {
+        result += CalcPointLight(u_PointLights[i], N, v_FragPos, V, baseColor.rgb, roughness, metallic);
+    }
 
-    // 金属度影响高光颜色
-    // 非金属(metallic=0)的高光是白色的
-    // 金属(metallic=1)的高光是它本身的颜色(Albedo)
-    vec3 F0 = vec3(0.04); // 绝缘体基础反射率
-    vec3 specColor = mix(F0, baseColor.rgb, metallic);
-    vec3 specular = specColor * specTerm;
-
-    // ------------------------------------------
-    // 3. 合成输出
-    // ------------------------------------------
+    // 环境光 (简单处理)
+    vec3 ambient = vec3(0.03) * baseColor.rgb;
     
-    // 简单的环境光
-    vec3 ambient = vec3(0.1) * baseColor.rgb;
+    FragColor = vec4(ambient + result, baseColor.a);
+}
 
-    vec3 finalColor = ambient + diffuse + specular;
+// 半兰伯特 + Blinn-Phong 计算方向光
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec3 albedo, float roughness, float metallic) {
+    vec3 L = normalize(-light.direction); // 光照方向取反 (指向光源)
+    vec3 H = normalize(L + viewDir);
+
+    // Diffuse (Half-Lambert)
+    float diff = pow(dot(normal, L) * 0.5 + 0.5, 2.0);
+    vec3 diffuse = light.color * light.intensity * diff * albedo;
+
+    // Specular
+    float shininess = (1.0 - roughness) * 256.0 + 1.0;
+    float spec = pow(max(dot(normal, H), 0.0), shininess);
     
-    FragColor = vec4(finalColor, baseColor.a);
+    vec3 F0 = vec3(0.04); 
+    vec3 specColor = mix(F0, albedo, metallic);
+    vec3 specular = light.color * light.intensity * spec * specColor;
+
+    return diffuse + specular;
+}
+
+// 点光源计算 (带衰减)
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float roughness, float metallic) {
+    vec3 L = normalize(light.position - fragPos);
+    vec3 H = normalize(L + viewDir);
+    
+    // 衰减
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+
+    // Diffuse
+    float diff = pow(max(dot(normal, L), 0.0), 2.0); // 点光源通常不用半兰伯特，这里用标准 Lambert 平方让光感更好
+    vec3 diffuse = light.color * light.intensity * diff * albedo;
+
+    // Specular
+    float shininess = (1.0 - roughness) * 256.0 + 1.0;
+    float spec = pow(max(dot(normal, H), 0.0), shininess);
+    
+    vec3 F0 = vec3(0.04); 
+    vec3 specColor = mix(F0, albedo, metallic);
+    vec3 specular = light.color * light.intensity * spec * specColor;
+
+    return (diffuse + specular) * attenuation;
 }

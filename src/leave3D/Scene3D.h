@@ -4,6 +4,7 @@
 #include "Object3D.h"
 #include "ObjectContainer3D.h"
 #include "Mesh.h"
+#include "light/LightBase.h"
 
 static_assert(std::is_polymorphic_v<Object3D>, "Object3D must stay polymorphic for dynamic_cast in Scene3D.");
 
@@ -34,5 +35,17 @@ public:
             }
         }
         return meshList;
+    }
+
+    std::vector<LightBase*> GetFlatLightList() {
+        std::vector<LightBase*> lightList;
+        auto flatChildren = _root->GetFlatChildren();
+        for(auto child : flatChildren) {
+            LightBase* light = dynamic_cast<LightBase*>(child);
+            if(light) {
+                lightList.push_back(light);
+            }
+        }
+        return lightList;
     }
 };
