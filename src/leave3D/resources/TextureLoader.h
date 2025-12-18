@@ -1,29 +1,16 @@
-// ResourceLoader.h
 #pragma once
-#include <string>
-#include <fstream>
-#include <sstream>
+
 #include <iostream>
-#include <glad/glad.h>
+#include <memory>
+#include <string>
 
-#include "stb_image.h" 
+#include "stb_image.h"
+#include "../Texture.h"
 
-class ResourceLoader {
+class TextureLoader {
 public:
-    // 读取文本文件 (用于 Shader 或 OBJ)
-    static std::string LoadTextFile(const std::string& path) {
-        std::ifstream file(path);
-        if (!file.is_open()) {
-            std::cerr << "Failed to load file: " << path << std::endl;
-            return "";
-        }
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        return buffer.str();
-    }
-
-    // 加载纹理
-    static unsigned int LoadTexture(const std::string& path) {
+    static std::shared_ptr<Texture> Load( std::string path ) {
+        std::shared_ptr<Texture> texture = std::make_shared<Texture>();
         unsigned int textureID;
         glGenTextures(1, &textureID);
 
@@ -45,11 +32,15 @@ public:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
             stbi_image_free(data);
+            texture->id = textureID;
+            texture->width = width;
+            texture->height = height;
+            texture->channels = nrComponents;
+            return texture;
         } else {
             std::cout << "Texture failed to load at path: " << path << std::endl;
             stbi_image_free(data);
+            return nullptr;
         }
-
-        return textureID;
     }
 };

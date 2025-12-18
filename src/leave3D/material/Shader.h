@@ -4,8 +4,11 @@
 #include <glm/glm.hpp>
 #include <string> // 建议加上string头文件
 
-class Shader {
+#include "../resources/IResource.h"
+
+class Shader : public IResource {
 public:
+
     GLuint ID;
 
     Shader(const char* vCode, const char* fCode) {
@@ -68,4 +71,6 @@ public:
     void SetBool(const char* name, bool value) const {
         glUniform1i(glGetUniformLocation(ID, name), (int)value);
     }
+
+    ResourceType GetResourceType() const override { return ResourceType::Shader; }
 };

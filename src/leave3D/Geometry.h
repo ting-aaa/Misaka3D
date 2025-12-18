@@ -3,6 +3,8 @@
 #include <glad/glad.h>
 #include <cstddef> // offsetof
 
+#include "resources/IResource.h"
+
 struct Vertex {
     float position[3];
     float normal[3];
@@ -10,9 +12,16 @@ struct Vertex {
     float tangent[3];
 };
 
-class Geometry {
+class Geometry : public IResource{
 public:
+    static constexpr ResourceType TypeEnum = ResourceType::Geometry;
+
+    Geometry() : _vao(0), _vbo(0), _ebo(0), _indexCount(0) {}
     Geometry(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) {
+        UploadGPU(vertices, indices);
+    }
+
+    void UploadGPU(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) {
         _indexCount = indices.size();
         glGenVertexArrays(1, &_vao);
         glGenBuffers(1, &_vbo);
@@ -39,7 +48,6 @@ public:
         glBindVertexArray(0);
     }
 
-    // [修复] 添加析构函数
     ~Geometry() {
         if (_vao) glDeleteVertexArrays(1, &_vao);
         if (_vbo) glDeleteBuffers(1, &_vbo);
@@ -54,6 +62,8 @@ public:
     void Unbind() const { glBindVertexArray(0); }
 
     int GetIndexCount() const { return _indexCount; }
+
+    ResourceType GetResourceType() const override { return ResourceType::Geometry; }
 
     static std::vector<float> ComputeTangents(const std::vector<float>& oldVertices, const std::vector<unsigned int>& indices) {
         // 1. 初始化新容器
