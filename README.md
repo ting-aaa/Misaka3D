@@ -1,3 +1,3 @@
 # Leave3D
 
-A simple RenderEngine fo learning OpenGL!
+A simple RenderEngine for learning OpenGL!
