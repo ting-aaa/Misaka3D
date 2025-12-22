@@ -8,7 +8,7 @@
 
 class Shader : public IResource {
 public:
-
+    static constexpr ResourceType TypeEnum = ResourceType::Shader;
     GLuint ID;
 
     Shader(const char* vCode, const char* fCode) {

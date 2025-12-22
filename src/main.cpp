@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fstream>
 
 #include "vendor/imgui/imgui.h"
 #include "vendor/imgui/imgui_impl_glfw.h"
@@ -16,8 +17,10 @@
 #include "leave3D/Geometry.h"
 #include "leave3D/material/MaterialBase.h"
 #include "leave3D/material/Shader.h"
-#include "leave3D/resource/ObjParser.h"
 #include "leave3D/material/CommonMaterial.h"
+#include "leave3D/AssetManager.h"
+#include "leave3D/ModelImporter.h"
+#include "leave3D/SceneBuilder.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -26,6 +29,16 @@ const unsigned int SCR_WIDTH = 1920;
 const unsigned int SCR_HEIGHT = 1080;
 int CURRENT_WIDTH = SCR_WIDTH;
 int CURRENT_HEIGHT = SCR_HEIGHT;
+
+std::string LoadTextFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << path << std::endl;
+        return "";
+    }
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    return content;
+}
 
 int main() {
     // glfw: initialize and configure
@@ -63,26 +76,15 @@ int main() {
     // 4. Leave3D 引擎初始化
     // ==========================================
 
-    std::string vCode = ResourceLoader::LoadTextFile("assets/shader/common.vert");
-    std::string fCode = ResourceLoader::LoadTextFile("assets/shader/common.frag");
-    std::cout << "Vertex Shader Code:\n" << vCode << std::endl;
-    std::cout << "Fragment Shader Code:\n" << fCode << std::endl;
-    Shader* shader = new Shader(vCode.c_str(), fCode.c_str());
+    std::shared_ptr<Shader> shader = AssetManager::Ins()->GetOrLoad<Shader>("assets/shader/common", [&](){
+        std::string vCode = LoadTextFile("assets/shader/common.vert");
+        std::string fCode = LoadTextFile("assets/shader/common.frag");
+        // std::cout << "Vertex Shader Code:\n" << vCode << std::endl;
+        // std::cout << "Fragment Shader Code:\n" << fCode << std::endl;
+        std::shared_ptr<Shader> ret = std::make_shared<Shader>(vCode.c_str(), fCode.c_str());
+        return ret;
+    });
 
-    Geometry* cubeGeo = ObjParser::Parse("assets/model/cube.obj");
-
-    CommonMaterial* redMat = new CommonMaterial(shader);
-    redMat->color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f); // 红色
-    redMat->roughness = 0.3f; // 稍微光滑一点
-    redMat->metallic = 0.1f;  // 有点金属感
-    CommonMaterial* blueMat = new CommonMaterial(shader);
-    blueMat->color = glm::vec4(0.2f, 0.2f, 1.0f, 1.0f); // 蓝色
-    blueMat->roughness = 0.8f; // 偏粗糙一点
-    blueMat->metallic = 0.0f;  // 非金属
-    redMat->albedoMap = ResourceLoader::LoadTexture("assets/texture/uv1k00.png");
-    blueMat->albedoMap = ResourceLoader::LoadTexture("assets/texture/uv1k01.png");
-
-    // C. 构建场景图
     Scene3D* scene = new Scene3D();
 
     //添加灯光
@@ -90,23 +92,13 @@ int main() {
     dirLight->SetRotation(-45.0f, 45.0f, 0.0f); // 对角线方向
     scene->GetRoot()->AddChild(dirLight);
 
-    PointLight* pointLight = new PointLight();
-    pointLight->SetPosition(0.0f, 0.0f, 0.0f);
-    pointLight->color = glm::vec3(1.0f, 0.0f, 0.0f);
-    // scene->GetRoot()->AddChild(pointLight);
-    
-    // 创建一个红色的方块 Mesh
-    Mesh* box1 = new Mesh(cubeGeo, redMat);
-    scene->GetRoot()->AddChild(box1);
+    ObjectContainer3D* cube = nullptr;
+    auto prefab = ModelImporter::Load("assets/model/cube.obj");
+    if(prefab) {
+        cube = SceneBuilder::Instantiate(prefab);
+        scene->GetRoot()->AddChild(cube);
+    }
 
-    // 创建一个蓝色的子方块 Mesh
-    Mesh* box2 = new Mesh(cubeGeo, blueMat);
-    box2->SetPosition(3.0f, 0.0f, 0.0f); // 偏移一点
-    box2->SetScale(0.2f, 0.2f, 0.2f);    // 变小一点
-    box1->AddChild(box2);                // box2 是 box1 的子节点
-    box2->AddChild(pointLight);      // PointLight 是 box2 的子节点
-
-    // D. 准备渲染器和相机
     Renderer* renderer = new Renderer();
     View3D* view3D = new View3D(renderer, scene);
     
@@ -117,9 +109,9 @@ int main() {
     // render loop
     while (!glfwWindowShouldClose(window))
     {
-        // Logic Update
-        box1->SetRotation(box1->GetRotation().x + 0.5f, box1->GetRotation().y + 1.0f, 0.0f);
-        box2->SetRotation(0.0f, box2->GetRotation().y + 2.0f, 0.0f); // 子物体自转
+        if(cube) {
+            cube->SetRotation(cube->GetRotation().x + 0.5f, 0.0f, 0.0f);
+        }
 
         // Render Clear
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -134,9 +126,6 @@ int main() {
         // 更新相机宽高比（以防窗口缩放）
         camera->SetAspect((float)CURRENT_WIDTH / (float)CURRENT_HEIGHT);
         
-        // 执行渲染
-        // 注意：Camera3D::GetViewMatrix() 返回值，View3D::Render 接受引用
-        // 如果编译报错，可以使用临时变量
         glm::mat4 view = camera->GetViewMatrix();
         glm::mat4 proj = camera->GetProjectionMatrix();
         view3D->Render(view, proj, camera->GetPosition());
@@ -158,10 +147,10 @@ int main() {
     delete view3D;
     delete renderer;
     delete scene; // 会自动删除 box1, box2
-    delete redMat;
-    delete blueMat;
-    delete cubeGeo;
-    delete shader;
+    // delete redMat;
+    // delete blueMat;
+    // delete cubeGeo;
+    // delete shader;
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

@@ -20,11 +20,11 @@ public:
         // if (std::filesystem::exists(sibling)) return sibling.string();
 
         // 检查模型目录 textures 子目录
-        std::filesystem::path texturesDir = model.parent_path() / "textures" / fileName;
-        if (std::filesystem::exists(texturesDir)) return texturesDir.string();
+        std::filesystem::path tex1 = model.parent_path() / "textures" / fileName;
+        if (std::filesystem::exists(tex1)) return tex1.string();
         // 检查模型目录 Textures 子目录
-        std::filesystem::path texturesDir = model.parent_path() / "Textures" / fileName;
-        if (std::filesystem::exists(texturesDir)) return texturesDir.string();
+        std::filesystem::path tex2 = model.parent_path() / "Textures" / fileName;
+        if (std::filesystem::exists(tex2)) return tex2.string();
         
         // 返回同级目录
         return rawPath;
@@ -34,10 +34,8 @@ public:
 class AssetManager {
 public:
     static AssetManager* Ins() {
-        if (!_instance) {
-            _instance = new AssetManager();
-        }
-        return _instance;
+        static AssetManager instance;
+        return &instance;
     }
 
     template<typename R>
@@ -69,19 +67,19 @@ public:
         
         auto it = groupCache.find(uid);
         if (it != groupCache.end()) {
-            return std::dynamic_pointer_cast<T>(it->second);
+            return std::dynamic_pointer_cast<R>(it->second);
         }
         return nullptr;
     }
 
-    template<typename T>
-    std::vector<std::shared_ptr<T>> GetAllAssets() {
-        constexpr ResourceType type = T::TypeEnum;
-        std::vector<std::shared_ptr<T>> result;
+    template<typename R>
+    std::vector<std::shared_ptr<R>> GetAllAssets() {
+        constexpr ResourceType type = R::TypeEnum;
+        std::vector<std::shared_ptr<R>> result;
         
         auto& groupCache = _resourceGroups[type];
         for (auto& [uid, res] : groupCache) {
-            result.push_back(std::dynamic_pointer_cast<T>(res));
+            result.push_back(std::dynamic_pointer_cast<R>(res));
         }
         return result;
     }
@@ -116,5 +114,4 @@ public:
     }
 private:
     std::map<ResourceType, std::map<std::string, std::shared_ptr<IResource>>> _resourceGroups;
-    static AssetManager* _instance;
 };

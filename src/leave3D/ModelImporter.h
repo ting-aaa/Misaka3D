@@ -37,6 +37,7 @@ glm::mat4 AssimpToGLM( const aiMatrix4x4& from ) {
     to[0][1] = from.b1; to[1][1] = from.b2; to[2][1] = from.b3; to[3][1] = from.b4;
     to[0][2] = from.c1; to[1][2] = from.c2; to[2][2] = from.c3; to[3][2] = from.c4;
     to[0][3] = from.d1; to[1][3] = from.d2; to[2][3] = from.d3; to[3][3] = from.d4;
+    return to;
 }
 
 void ProcessNode( aiNode* node, const aiScene* scene, ModelPrefab::NodeData& outNode ){
@@ -162,6 +163,11 @@ public:
                 //颜色
                 aiColor4D color(1.0f,1.0f,1.0f,1.0f);
                 aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+                std::cout << "Material Color: "
+                          << color.r << ", "
+                          << color.g << ", "
+                          << color.b << ", "
+                          << color.a << std::endl;
                 mat->color = glm::vec4( color.r, color.g, color.b, color.a );
 
                 //TODO: 其他属性

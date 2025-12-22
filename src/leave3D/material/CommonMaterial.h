@@ -29,13 +29,13 @@ public:
     // 光照方向 (实际项目中通常由 Scene/Light 组件传入，这里为了演示方便放在材质里)
     glm::vec3 lightDirection = glm::normalize(glm::vec3(0.5f, 1.0f, 0.5f));
 
-    CommonMaterial(Shader* shader) : MaterialBase(shader) {}
+    CommonMaterial(std::shared_ptr<Shader> shader) : MaterialBase(shader) {}
 
     // ==========================================
     // 核心逻辑: 上传 Uniform
     // ==========================================
     void uploadUniforms() override {
-        Shader* s = _shader;
+        Shader* s = _shader.get();
 
         // --- 1. Albedo ---
         if (albedoMap != 0) {
