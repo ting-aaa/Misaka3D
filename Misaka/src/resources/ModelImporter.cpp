@@ -5,6 +5,8 @@
 
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+#include <assimp/texture.h>
+#include <assimp/pbrmaterial.h>
 #include <assimp/Importer.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -15,6 +17,7 @@
 #include "../renderer/Texture.h"
 #include "../material/MaterialBase.h"
 #include "../material/CommonMaterial.h"
+#include "../material/PBRMaterial.h"
 
 namespace Misaka {
 
@@ -25,6 +28,43 @@ static glm::mat4 AssimpToGLM(const aiMatrix4x4& from) {
     to[0][2] = from.c1; to[1][2] = from.c2; to[2][2] = from.c3; to[3][2] = from.c4;
     to[0][3] = from.d1; to[1][3] = from.d2; to[2][3] = from.d3; to[3][3] = from.d4;
     return to;
+}
+
+static bool IsEmbeddedTextureRef(const aiString& texPath) {
+    const char* cstr = texPath.C_Str();
+    return cstr && cstr[0] == '*';
+}
+
+static std::shared_ptr<Texture> LoadEmbeddedTexture(const aiScene* scene, const aiString& texPath, const std::string& modelPath) {
+    if (!scene) return nullptr;
+
+    const aiTexture* embedded = scene->GetEmbeddedTexture(texPath.C_Str());
+    if (!embedded) return nullptr;
+
+    const std::string texUID = modelPath + "::embedded::" + texPath.C_Str();
+    auto assetMgr = AssetManager::Ins();
+
+    return assetMgr->GetOrLoad<Texture>(texUID, [&]() {
+        if (embedded->mHeight == 0) {
+            const unsigned char* compressedData = reinterpret_cast<const unsigned char*>(embedded->pcData);
+            return TextureLoader::LoadFromMemory(compressedData, static_cast<int>(embedded->mWidth), texUID);
+        }
+
+        const int width = static_cast<int>(embedded->mWidth);
+        const int height = static_cast<int>(embedded->mHeight);
+        std::vector<unsigned char> rgba;
+        rgba.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4u);
+
+        for (int i = 0; i < width * height; ++i) {
+            const aiTexel& src = embedded->pcData[i];
+            rgba[i * 4 + 0] = src.r;
+            rgba[i * 4 + 1] = src.g;
+            rgba[i * 4 + 2] = src.b;
+            rgba[i * 4 + 3] = src.a;
+        }
+
+        return TextureLoader::LoadRawRGBA(rgba.data(), width, height);
+    });
 }
 
 static void ProcessNode(aiNode* node, const aiScene* scene, ModelPrefab::NodeData& outNode) {
@@ -126,21 +166,29 @@ std::shared_ptr<ModelPrefab> ModelImporter::Load(const std::string& path) {
         std::string strMatName = matName.C_Str();
         std::string matID = path + "mat_" + strMatName;
 
-        auto material = assetMgr->GetOrLoad<CommonMaterial>(matID, [&]() {
-            auto shader = assetMgr->Find<Shader>("assets/shader/common");
-            auto mat = std::make_shared<CommonMaterial>(shader);
+        auto material = assetMgr->GetOrLoad<PBRMaterial>(matID, [&]() {
+            auto shader = assetMgr->Find<Shader>("assets/shader/pbr");
+            if (!shader) {
+                shader = assetMgr->Find<Shader>("assets/shader/common");
+            }
+            auto mat = std::make_shared<PBRMaterial>(shader);
             
             // 获取纹理
             auto loadTexture = [&](aiTextureType type) -> unsigned int {
                 if (aiMat->GetTextureCount(type) > 0) {
                     aiString texPath;
                     aiMat->GetTexture(type, 0, &texPath);
-                    std::string resolvedPath = PathResolver::Resolve(texPath.C_Str(), path);
-                    std::string texUID = resolvedPath;
-                    
-                    auto tex = assetMgr->GetOrLoad<Texture>(texUID, [&]() {
-                        return TextureLoader::Load(resolvedPath);
-                    });
+                    std::shared_ptr<Texture> tex;
+
+                    if (IsEmbeddedTextureRef(texPath)) {
+                        tex = LoadEmbeddedTexture(scene, texPath, path);
+                    } else {
+                        std::string resolvedPath = PathResolver::Resolve(texPath.C_Str(), path);
+                        std::string texUID = resolvedPath;
+                        tex = assetMgr->GetOrLoad<Texture>(texUID, [&]() {
+                            return TextureLoader::Load(resolvedPath);
+                        });
+                    }
                     
                     if (tex) return tex->id;
                 }
@@ -151,11 +199,23 @@ std::shared_ptr<ModelPrefab> ModelImporter::Load(const std::string& path) {
             mat->normalMap = loadTexture(aiTextureType_NORMALS);
             mat->roughnessMap = loadTexture(aiTextureType_SHININESS);
             mat->metallicMap = loadTexture(aiTextureType_METALNESS);
+            mat->aoMap = loadTexture(aiTextureType_AMBIENT_OCCLUSION);
+            mat->emissiveMap = loadTexture(aiTextureType_EMISSIVE);
 
             // 获取基础颜色
             aiColor4D diffuse;
             if (AI_SUCCESS == aiMat->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse)) {
-                mat->color = glm::vec4(diffuse.r, diffuse.g, diffuse.b, diffuse.a);
+                mat->albedoColor = glm::vec4(diffuse.r, diffuse.g, diffuse.b, diffuse.a);
+            }
+
+            ai_real roughnessFactor = 0.5f;
+            if (AI_SUCCESS == aiMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughnessFactor)) {
+                mat->roughness = static_cast<float>(roughnessFactor);
+            }
+
+            ai_real metallicFactor = 0.0f;
+            if (AI_SUCCESS == aiMat->Get(AI_MATKEY_METALLIC_FACTOR, metallicFactor)) {
+                mat->metallic = static_cast<float>(metallicFactor);
             }
 
             return mat;

@@ -4,6 +4,11 @@
 
 namespace Misaka {
 
+Renderer::Renderer() {
+    _startTime = std::chrono::steady_clock::now();
+    _lastFrameTime = _startTime;
+}
+
 void Renderer::Render(Mesh* mesh, const glm::mat4& view, const glm::mat4& proj,
                        const glm::vec3& cameraPos, const std::vector<LightBase*>& lights) {
     if (!mesh) return;
@@ -11,12 +16,26 @@ void Renderer::Render(Mesh* mesh, const glm::mat4& view, const glm::mat4& proj,
     Shader* shader = mesh->material()->GetShader();
     shader->Use();
     
-    shader->SetMat4("u_Model", mesh->GetWorldMatrix());
-    shader->SetMat4("u_View", view);
-    shader->SetMat4("u_Proj", proj);
-    shader->SetVec3("u_CameraPos", cameraPos);
+    auto now = std::chrono::steady_clock::now();
+    float totalTime = std::chrono::duration<float>(now - _startTime).count();
+    float delta = std::chrono::duration<float>(now - _lastFrameTime).count();
+    _lastFrameTime = now;
 
-    mesh->material()->uploadUniforms();
+    GLint viewport[4] = {0, 0, 1, 1};
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    MaterialContext context;
+    context.model = mesh->GetWorldMatrix();
+    context.view = view;
+    context.projection = proj;
+    context.cameraPosition = cameraPos;
+    context.time = totalTime;
+    context.deltaTime = delta;
+    context.frame = _frameCounter;
+    context.resolution = glm::vec2(static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+    context.lights = &lights;
+
+    mesh->material()->uploadUniforms(context);
     uploadLights(shader, lights);
 
     mesh->geometry()->Bind();
@@ -24,6 +43,7 @@ void Renderer::Render(Mesh* mesh, const glm::mat4& view, const glm::mat4& proj,
     mesh->geometry()->Unbind();
     
     shader->UnUse();
+    ++_frameCounter;
 }
 
 void Renderer::uploadLights(Shader* shader, const std::vector<LightBase*>& lights) {

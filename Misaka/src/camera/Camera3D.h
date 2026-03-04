@@ -15,11 +15,19 @@ private:
 public:
     Camera3D(float fov, float aspect, float nearPlane, float farPlane);
 
+    void SetFov(float fov);
     void SetAspect(float aspect);
+    void SetNearFar(float nearPlane, float farPlane);
     void UpdateProjection();
+
+    float GetFov() const;
+    float GetAspect() const;
+    float GetNearPlane() const;
+    float GetFarPlane() const;
 
     const glm::mat4& GetProjectionMatrix() const;
     glm::mat4 GetViewMatrix();
+    glm::mat4 GetViewProjectionMatrix();
 };
 
 } // namespace Misaka

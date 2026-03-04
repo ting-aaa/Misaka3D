@@ -26,6 +26,7 @@ public:
     void SetMat4(const char* name, const glm::mat4& mat) const;
     void SetInt(const char* name, int value) const;
     void SetFloat(const char* name, float value) const;
+    void SetVec2(const char* name, const glm::vec2& vec) const;
     void SetVec3(const char* name, const glm::vec3& vec) const;
     void SetVec4(const char* name, const glm::vec4& vec) const;
     void SetBool(const char* name, bool value) const;

@@ -4,8 +4,9 @@ namespace Misaka {
 
 CommonMaterial::CommonMaterial(std::shared_ptr<Shader> shader) : MaterialBase(shader) {}
 
-void CommonMaterial::uploadUniforms() {
+void CommonMaterial::uploadUniforms(const MaterialContext& context) {
     Shader* s = _shader.get();
+    UploadCommonContextUniforms(context);
 
     // --- 1. Albedo ---
     if (albedoMap != 0) {
@@ -52,6 +53,8 @@ void CommonMaterial::uploadUniforms() {
 
     // --- 5. 光照 ---
     s->SetVec3("u_LightDir", lightDirection);
+
+    UploadCustomUniforms();
 }
 
 } // namespace Misaka

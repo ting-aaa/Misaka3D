@@ -28,7 +28,7 @@ public:
 
     CommonMaterial(std::shared_ptr<Shader> shader);
 
-    void uploadUniforms() override;
+    void uploadUniforms(const MaterialContext& context) override;
 };
 
 } // namespace Misaka

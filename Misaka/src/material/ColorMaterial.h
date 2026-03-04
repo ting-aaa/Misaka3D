@@ -11,7 +11,7 @@ public:
     
     ColorMaterial(std::shared_ptr<Shader> shader, const glm::vec4& color);
 
-    void uploadUniforms() override;
+    void uploadUniforms(const MaterialContext& context) override;
 };
 
 } // namespace Misaka
