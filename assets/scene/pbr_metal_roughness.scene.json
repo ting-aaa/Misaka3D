@@ -1,0 +1,44 @@
+{
+  "camera": {
+    "fov": 45.0,
+    "near": 0.1,
+    "far": 200.0,
+    "position": [0.0, 0.0, 22.0],
+    "rotation": [0.0, 0.0, 0.0]
+  },
+  "lights": {
+    "directional": [
+      {
+        "rotation": [-55.0, -133.0, 0.0],
+        "color": [1.0, 1.0, 1.0],
+        "intensity": 2.2
+      }
+    ]
+  },
+  "primitives": [
+    {
+      "name": "PBRSphereGrid",
+      "type": "sphere",
+      "radius": 0.45,
+      "sectors": 48,
+      "stacks": 24,
+      "grid": {
+        "rows": 10,
+        "cols": 10,
+        "spacing": 1.1,
+        "plane": "xy"
+      },
+      "material": {
+        "albedo": [1.0, 0.0, 0.0, 1.0],
+        "ao": 1.0,
+        "roughnessRange": [0.05, 1.0],
+        "metallicRange": [0.0, 1.0]
+      },
+      "transform": {
+        "position": [0.0, 0.0, 0.0],
+        "rotation": [0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0]
+      }
+    }
+  ]
+}

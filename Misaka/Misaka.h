@@ -20,6 +20,9 @@
 #include "src/renderer/Texture.h"
 #include "src/renderer/Renderer.h"
 #include "src/renderer/View3D.h"
+#include "src/renderer/CubeGeometry.h"
+#include "src/renderer/SphereGeometry.h"
+#include "src/renderer/QuadGeometry.h"
 
 // Entity
 #include "src/entity/Object3D.h"
@@ -33,6 +36,7 @@
 // Scene
 #include "src/scene/Scene3D.h"
 #include "src/scene/SceneBuilder.h"
+#include "src/scene/SceneConfigLoader.h"
 
 // Camera
 #include "src/camera/Camera3D.h"
@@ -41,3 +45,5 @@
 #include "src/material/MaterialBase.h"
 #include "src/material/CommonMaterial.h"
 #include "src/material/ColorMaterial.h"
+#include "src/material/PBRMaterial.h"
+#include "src/material/ShaderToyMaterial.h"
